@@ -5,14 +5,16 @@ import { fetchJobDetails } from '../services/api';
 import { formatDistanceToNow } from '../utils/dateUtils';
 import { useJobContext } from '../context/JobContext';
 import JobDetailsSkeleton from './skeletons/JobDetailsSkeleton';
+import DOMPurify from 'dompurify';
+import type { Job } from '../types/job';
 
 const JobDetails: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const [jobDetails, setJobDetails] = useState<any>(null);
+  const [jobDetails, setJobDetails] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { toggleSaveJob, isJobSaved } = useJobContext();
+  const { toggleSaveJob, isJobSaved, apiKey } = useJobContext();
   
   useEffect(() => {
     const getJobDetails = async () => {
@@ -20,10 +22,10 @@ const JobDetails: React.FC = () => {
       
       setLoading(true);
       try {
-        const response = await fetchJobDetails(jobId);
-        setJobDetails(response.data[0]);
-      } catch (err) {
-        console.error('Error fetching job details:', err);
+        const response = await fetchJobDetails(jobId, apiKey);
+        setJobDetails(response.data[0] || null);
+        setError(null);
+      } catch {
         setError('Failed to load job details. Please try again later.');
       } finally {
         setLoading(false);
@@ -31,7 +33,7 @@ const JobDetails: React.FC = () => {
     };
     
     getJobDetails();
-  }, [jobId]);
+  }, [jobId, apiKey]);
   
   if (loading) {
     return <JobDetailsSkeleton />;
@@ -64,11 +66,6 @@ const JobDetails: React.FC = () => {
   
   // Default logo if none is provided
   const logoUrl = job.employer_logo || "https://via.placeholder.com/100?text=Logo";
-  
-  // Process job description to properly render HTML
-  const createMarkup = (html: string) => {
-    return { __html: html };
-  };
   
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -182,7 +179,7 @@ const JobDetails: React.FC = () => {
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Job Description</h2>
           <div 
             className="prose prose-blue max-w-none text-gray-700" 
-            dangerouslySetInnerHTML={createMarkup(job.job_description || 'No description provided')}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(job.job_description || 'No description provided') }}
           />
         </div>
         
