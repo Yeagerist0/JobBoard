@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Job, JobSearchParams } from '../types/job';
 import { searchJobs } from '../services/api';
 
@@ -15,6 +15,8 @@ interface JobContextType {
   savedJobs: string[];
   toggleSaveJob: (jobId: string) => void;
   isJobSaved: (jobId: string) => boolean;
+  apiKey: string;
+  setApiKey: (apiKey: string) => void;
 }
 
 const defaultSearchParams: JobSearchParams = {
@@ -28,6 +30,7 @@ const defaultSearchParams: JobSearchParams = {
 const JobContext = createContext<JobContextType | undefined>(undefined);
 
 export const JobProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [apiKey, setApiKeyState] = useState(() => sessionStorage.getItem('rapidApiKey') || '');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,14 +57,14 @@ export const JobProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('savedJobs', JSON.stringify(savedJobs));
   }, [savedJobs]);
 
-  const fetchJobs = async (resetJobs = true) => {
+  const fetchJobs = useCallback(async () => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await searchJobs(searchParams);
+      const response = await searchJobs(searchParams, apiKey);
       
-      if (resetJobs) {
+      if (searchParams.page === 1) {
         setJobs(response.data);
       } else {
         setJobs(prevJobs => [...prevJobs, ...response.data]);
@@ -70,18 +73,25 @@ export const JobProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setTotalJobs(response.total_jobs);
       setCurrentPage(response.current_page);
       setTotalPages(response.total_pages);
-    } catch (err) {
-      setError('Failed to fetch jobs. Please try again later.');
-      console.error(err);
+    } catch {
+      setError('Failed to fetch jobs. Check your API key or try again later.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchParams, apiKey]);
 
   // Initial fetch and when search params change
   useEffect(() => {
     fetchJobs();
-  }, [searchParams.query, searchParams.location, searchParams.jobType, searchParams.experience]);
+  }, [fetchJobs]);
+
+  const setApiKey = (key: string) => {
+    const trimmed = key.trim();
+    if (trimmed) sessionStorage.setItem('rapidApiKey', trimmed);
+    else sessionStorage.removeItem('rapidApiKey');
+    setApiKeyState(trimmed);
+    setSearchParams(prev => ({ ...prev, page: 1 }));
+  };
 
   const updateSearchParams = (params: Partial<JobSearchParams>) => {
     setSearchParams(prev => ({
@@ -98,7 +108,6 @@ export const JobProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const fetchMoreJobs = () => {
     if (currentPage < totalPages && !loading) {
       updateSearchParams({ page: searchParams.page + 1 });
-      fetchJobs(false);
     }
   };
 
@@ -129,7 +138,9 @@ export const JobProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       fetchMoreJobs,
       savedJobs,
       toggleSaveJob,
-      isJobSaved
+      isJobSaved,
+      apiKey,
+      setApiKey
     }}>
       {children}
     </JobContext.Provider>

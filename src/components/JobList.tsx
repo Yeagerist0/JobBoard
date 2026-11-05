@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useRef, useCallback } from 'react';
 import JobCard from './JobCard';
 import { useJobContext } from '../context/JobContext';
 import JobListSkeleton from './skeletons/JobListSkeleton';
